@@ -27,10 +27,12 @@ jobs:
     - name: 运行抓取脚本
       run: python v2_cli.py
 
-    - name: 提交并推送到仓库
+- name: 提交并推送到仓库
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
+        # 即使文件不存在也不报错
+        touch nodes.txt
         git add nodes.txt
-        # 只有在文件有变动时才提交
-        git diff --quiet && git diff --staged --quiet || (git commit -m "自动更新节点 [$(date +'%Y-%m-%d %H:%M')]" && git push)
+        git commit -m "自动更新 [$(date +'%Y-%m-%d %H:%M')]" || echo "No changes to commit"
+        git push || echo "No changes to push"
