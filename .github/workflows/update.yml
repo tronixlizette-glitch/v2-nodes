@@ -1,4 +1,4 @@
-name: Update V2Ray Nodes 
+name: Update V2Ray Nodes
 
 on:
   schedule:
@@ -19,20 +19,26 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: 安装 Chrome 浏览器
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
     - name: 安装依赖包
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install requests selenium webdriver-manager
 
     - name: 运行抓取脚本
       run: python v2_cli.py
 
-- name: 提交并推送到仓库
+    - name: 提交并推送到仓库
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        # 即使文件不存在也不报错
-        touch nodes.txt
+        if [ ! -f nodes.txt ]; then
+          echo "No nodes found at $(date)" > nodes.txt
+        fi
         git add nodes.txt
         git commit -m "自动更新 [$(date +'%Y-%m-%d %H:%M')]" || echo "No changes to commit"
         git push || echo "No changes to push"
