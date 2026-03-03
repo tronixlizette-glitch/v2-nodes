@@ -95,18 +95,26 @@ def run_scraper():
     print(f"Done, filtered {len(final_node_list)} nodes total")
 
     if final_node_list:
+        content = "\n".join(final_node_list)
         with open("nodes.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(final_node_list))
+            f.write(content)
         print("Saved to nodes.txt")
         
+        # GitHub Mirror Links
+        print("\n--- Access Links ---")
+        print("GitHub Raw: https://raw.githubusercontent.com/tronixlizette-glitch/v2-nodes/main/nodes.txt")
+        print("JsDelivr CDN: https://cdn.jsdelivr.net/gh/tronixlizette-glitch/v2-nodes@main/nodes.txt")
+        
         try:
-            nodes_text = "\n".join(final_node_list)
-            b64 = base64.b64encode(nodes_text.encode()).decode()
-            r = requests.post("https://dpaste.com/api/", data={"content": b64, "expiry_days": 1}, timeout=10)
+            # Upload to dpaste.com as a backup
+            # Use raw content instead of base64 if possible, or follow dpaste API
+            r = requests.post("https://dpaste.com/api/", data={"content": content, "expiry_days": 1}, timeout=15)
             if r.status_code in (200, 201):
-                print(f"Dpaste Link: {r.text.strip()}.txt")
-        except:
-            pass
+                dpaste_url = r.text.strip() + ".txt"
+                print(f"Dpaste Mirror: {dpaste_url}")
+        except Exception as e:
+            print(f"Dpaste upload failed: {e}")
+        print("--------------------\n")
 
 if __name__ == "__main__":
     run_scraper()
