@@ -3,7 +3,7 @@ name: Update V2Ray Nodes
 on:
   schedule:
       # Every day 09:00 (UTC 01:00) and 18:00 (UTC 10:00) Beijing Time    # Note: GitHub Actions may have 15-120 minutes of delay
-          - cron: '0 1,10 * * *'
+          - cron: '0 4,10,16,22 * * *'
             workflow_dispatch: # Allow manual trigger
 
             jobs:
