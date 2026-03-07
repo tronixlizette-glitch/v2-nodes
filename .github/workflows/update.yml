@@ -1,4 +1,4 @@
-name: Update V2Ray Nodes
+"name: Update V2Ray Nodes (Optimized)
 
 on:
   schedule:
@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # 增加超时时间
 
     steps:
     - name: 检出代码
@@ -20,33 +21,103 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: 安装 Chrome 浏览器
+    - name: 安装 Chrome 浏览器和依赖
       run: |
         sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
+        sudo apt-get install -y google-chrome-stable wget curl
+        # 检查Chrome版本
+        google-chrome --version
 
-    - name: 安装依赖包
+    - name: 安装 Python 依赖包
       run: |
         python -m pip install --upgrade pip
         pip install requests selenium webdriver-manager
 
-    - name: 运行抓取脚本
-      run: python v2_cli.py
+    - name: 运行抓取脚本（带重试机制）
+      run: |
+        MAX_RETRIES=3
+        RETRY_DELAY=30
+        for i in $(seq 1 $MAX_RETRIES); do
+          echo \"尝试第 $i/$MAX_RETRIES 次运行爬虫脚本...\"
+          if python v2_cli.py; then
+            echo \"✅ 爬虫脚本执行成功\"
+            break
+          else
+            echo \"❌ 第 $i 次尝试失败\"
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo \"等待 ${RETRY_DELAY}秒后重试...\"
+              sleep $RETRY_DELAY
+            else
+              echo \"❌ 所有尝试都失败\"
+              exit 1
+            fi
+          fi
+        done
+
+    - name: 检查节点文件
+      run: |
+        if [ ! -f nodes.txt ]; then
+          echo \"❌ 错误：nodes.txt 文件未生成\"
+          exit 1
+        fi
+        
+        # 检查文件是否为空
+        if [ ! -s nodes.txt ]; then
+          echo \"❌ 错误：nodes.txt 文件为空\"
+          exit 1
+        fi
+        
+        # 统计行数
+        LINE_COUNT=$(wc -l < nodes.txt)
+        echo \"✅ 成功生成 nodes.txt，包含 $LINE_COUNT 个节点\"
+        
+        # 显示前3个节点作为示例
+        echo \"📋 节点示例：\"
+        head -3 nodes.txt
 
     - name: 提交并推送到仓库
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        if [ ! -f nodes.txt ]; then
-          echo "No nodes found at $(date)" > nodes.txt
+        git config --local user.email \"github-actions[bot]@users.noreply.github.com\"
+        git config --local user.name \"github-actions[bot]\"
+        
+        # 检查是否有变化
+        if git diff --quiet nodes.txt; then
+          echo \"📝 没有变化，跳过提交\"
+        else
+          echo \"📝 检测到变化，准备提交\"
+          git add nodes.txt
+          git commit -m \"自动更新 [$(date +'%Y-%m-%d %H:%M')] - $(wc -l < nodes.txt)个节点\"
+          
+          # 尝试推送，最多重试3次
+          MAX_PUSH_RETRIES=3
+          for i in $(seq 1 $MAX_PUSH_RETRIES); do
+            echo \"尝试第 $i/$MAX_PUSH_RETRIES 次推送...\"
+            if git push; then
+              echo \"✅ 推送成功\"
+              break
+            else
+              echo \"❌ 第 $i 次推送失败\"
+              if [ $i -lt $MAX_PUSH_RETRIES ]; then
+                echo \"等待10秒后重试...\"
+                sleep 10
+                # 拉取最新更改
+                git pull --rebase
+              else
+                echo \"❌ 所有推送尝试都失败\"
+                exit 1
+              fi
+            fi
+          done
         fi
-        git add nodes.txt
-        git commit -m "自动更新 [$(date +'%Y-%m-%d %H:%M')]" || echo "No changes to commit"
-        git push || echo "No changes to push"
 
     - name: 输出访问链接
       run: |
-        echo "### 🚀 节点访问地址 (China Accessibility)" >> $GITHUB_STEP_SUMMARY
-        echo "- **JsDelivr CDN (推荐)**: https://cdn.jsdelivr.net/gh/${{ github.repository }}@main/nodes.txt" >> $GITHUB_STEP_SUMMARY
-        echo "- **GitHub Raw**: https://raw.githubusercontent.com/${{ github.repository }}/main/nodes.txt" >> $GITHUB_STEP_SUMMARY
-        echo "- **Dpaste Mirror**: 请在上方 '运行抓取脚本' 日志中寻找 Dpaste 链接" >> $GITHUB_STEP_SUMMARY
+        echo \"### 🚀 节点访问地址 (China Accessibility)\" >> $GITHUB_STEP_SUMMARY
+        echo \"- **JsDelivr CDN (推荐)**: https://cdn.jsdelivr.net/gh/${{ github.repository }}@main/nodes.txt\" >> $GITHUB_STEP_SUMMARY
+        echo \"- **GitHub Raw**: https://raw.githubusercontent.com/${{ github.repository }}/main/nodes.txt\" >> $GITHUB_STEP_SUMMARY
+        echo \"- **本次更新节点数量**: $(wc -l < nodes.txt)\" >> $GITHUB_STEP_SUMMARY
+        echo \"\" >> $GITHUB_STEP_SUMMARY
+        echo \"### 📊 执行状态\" >> $GITHUB_STEP_SUMMARY
+        echo \"- **执行时间**: $(date)\" >> $GITHUB_STEP_SUMMARY
+        echo \"- **运行环境**: Ubuntu $(lsb_release -ds)\" >> $GITHUB_STEP_SUMMARY
+        echo \"- **Python版本**: $(python --version)\" >> $GITHUB_STEP_SUMMARY"
